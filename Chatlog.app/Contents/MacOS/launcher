@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN="$DIR/../Resources/chatlog"
+
+# Open Terminal and run chatlog
+osascript <<APPLESCRIPT
+tell application "Terminal"
+  activate
+  do script quoted form of POSIX path of "$BIN"
+end tell
+APPLESCRIPT
