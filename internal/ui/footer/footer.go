@@ -43,14 +43,14 @@ func New() *Footer {
 	footer.help.
 		SetBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
 
-	fmt.Fprintf(footer.help,
-		"[%s::b]↑/↓[%s::b]: 导航  [%s::b]←/→[%s::b]: 切换标签  [%s::b]Enter[%s::b]: 选择  [%s::b]ESC[%s::b]: 返回  [%s::b]Ctrl+C[%s::b]: 退出",
-		style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
-		style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
-		style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
-		style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
-		style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
-	)
+    fmt.Fprintf(footer.help,
+        "[%s::b]⌨️  ↑/↓[%s::b]: 导航  •  [%s::b]←/→[%s::b]: 切换  •  [%s::b]Enter[%s::b]: 选择  •  [%s::b]ESC[%s::b]: 返回  •  [%s::b]Ctrl+C[%s::b]: 退出",
+        style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
+        style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
+        style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
+        style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
+        style.GetColorHex(style.MenuBgColor), style.GetColorHex(style.PageHeaderFgColor),
+    )
 
 	footer.
 		AddItem(footer.copyRight, 0, 1, false).

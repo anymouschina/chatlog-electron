@@ -100,27 +100,27 @@ func (a *App) updateMenuItemsState() {
 	// 查找并更新自动解密菜单项
 	for _, item := range a.menu.GetItems() {
 		// 更新自动解密菜单项
-		if item.Index == 5 {
-			if a.ctx.AutoDecrypt {
-				item.Name = "停止自动解密"
-				item.Description = "停止监控数据目录更新，不再自动解密新增数据"
-			} else {
-				item.Name = "开启自动解密"
-				item.Description = "监控数据目录更新，自动解密新增数据"
-			}
-		}
+        if item.Index == 5 {
+            if a.ctx.AutoDecrypt {
+                item.Name = "🛑 停止自动解密"
+                item.Description = "停止监控数据目录更新，不再自动解密新增数据"
+            } else {
+                item.Name = "⚙️ 开启自动解密"
+                item.Description = "监控数据目录更新，自动解密新增数据"
+            }
+        }
 
-		// 更新HTTP服务菜单项
-		if item.Index == 4 {
-			if a.ctx.HTTPEnabled {
-				item.Name = "停止 HTTP 服务"
-				item.Description = "停止本地 HTTP & MCP 服务器"
-			} else {
-				item.Name = "启动 HTTP 服务"
-				item.Description = "启动本地 HTTP & MCP 服务器"
-			}
-		}
-	}
+        // 更新HTTP服务菜单项
+        if item.Index == 4 {
+            if a.ctx.HTTPEnabled {
+                item.Name = "🛑 停止 HTTP 服务"
+                item.Description = "停止本地 HTTP & MCP 服务器"
+            } else {
+                item.Name = "🌐 启动 HTTP 服务"
+                item.Description = "启动本地 HTTP & MCP 服务器"
+            }
+        }
+    }
 }
 
 func (a *App) switchTab(step int) {
@@ -199,11 +199,11 @@ func (a *App) inputCapture(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (a *App) initMenu() {
-	getDataKey := &menu.Item{
-		Index:       2,
-		Name:        "获取数据密钥",
-		Description: "从进程获取数据密钥",
-		Selected: func(i *menu.Item) {
+    getDataKey := &menu.Item{
+        Index:       2,
+        Name:        "🔑 获取数据密钥",
+        Description: "从进程获取数据密钥",
+        Selected: func(i *menu.Item) {
 			modal := tview.NewModal()
 			if runtime.GOOS == "darwin" {
 				modal.SetText("获取数据密钥中...\n预计需要 20 秒左右的时间，期间微信会卡住，请耐心等待")
@@ -237,11 +237,11 @@ func (a *App) initMenu() {
 		},
 	}
 
-	decryptData := &menu.Item{
-		Index:       3,
-		Name:        "解密数据",
-		Description: "解密数据文件",
-		Selected: func(i *menu.Item) {
+    decryptData := &menu.Item{
+        Index:       3,
+        Name:        "🔓 解密数据",
+        Description: "解密数据文件",
+        Selected: func(i *menu.Item) {
 			// 创建一个没有按钮的模态框，显示"解密中..."
 			modal := tview.NewModal().
 				SetText("解密中...")
@@ -275,11 +275,11 @@ func (a *App) initMenu() {
 		},
 	}
 
-	httpServer := &menu.Item{
-		Index:       4,
-		Name:        "启动 HTTP 服务",
-		Description: "启动本地 HTTP & MCP 服务器",
-		Selected: func(i *menu.Item) {
+    httpServer := &menu.Item{
+        Index:       4,
+        Name:        "🌐 启动 HTTP 服务",
+        Description: "启动本地 HTTP & MCP 服务器",
+        Selected: func(i *menu.Item) {
 			modal := tview.NewModal()
 
 			// 根据当前服务状态执行不同操作
@@ -427,19 +427,19 @@ func (a *App) initMenu() {
 		},
 	}
 
-	setting := &menu.Item{
-		Index:       6,
-		Name:        "设置",
-		Description: "设置应用程序选项",
-		Selected:    a.settingSelected,
-	}
+    setting := &menu.Item{
+        Index:       6,
+        Name:        "🧰 设置",
+        Description: "设置应用程序选项",
+        Selected:    a.settingSelected,
+    }
 
-	selectAccount := &menu.Item{
-		Index:       7,
-		Name:        "切换账号",
-		Description: "切换当前操作的账号，可以选择进程或历史账号",
-		Selected:    a.selectAccountSelected,
-	}
+    selectAccount := &menu.Item{
+        Index:       7,
+        Name:        "👤 切换账号",
+        Description: "切换当前操作的账号，可以选择进程或历史账号",
+        Selected:    a.selectAccountSelected,
+    }
 
 	a.menu.AddItem(getDataKey)
 	a.menu.AddItem(decryptData)
@@ -448,14 +448,14 @@ func (a *App) initMenu() {
 	a.menu.AddItem(setting)
 	a.menu.AddItem(selectAccount)
 
-	a.menu.AddItem(&menu.Item{
-		Index:       8,
-		Name:        "退出",
-		Description: "退出程序",
-		Selected: func(i *menu.Item) {
-			a.Stop()
-		},
-	})
+    a.menu.AddItem(&menu.Item{
+        Index:       8,
+        Name:        "🚪 退出",
+        Description: "退出程序",
+        Selected: func(i *menu.Item) {
+            a.Stop()
+        },
+    })
 }
 
 // settingItem 表示一个设置项

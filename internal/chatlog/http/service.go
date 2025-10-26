@@ -7,6 +7,7 @@ import (
 
 	"github.com/sjzar/chatlog/internal/chatlog/database"
 	"github.com/sjzar/chatlog/internal/chatlog/mcp"
+	"github.com/sjzar/chatlog/internal/chatlog/wechat"
 	"github.com/sjzar/chatlog/internal/errors"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,7 @@ type Service struct {
 	conf Config
 	db   *database.Service
 	mcp  *mcp.Service
+	wx   *wechat.Service
 
 	router *gin.Engine
 	server *http.Server
@@ -27,7 +29,7 @@ type Config interface {
 	GetDataDir() string
 }
 
-func NewService(conf Config, db *database.Service, mcp *mcp.Service) *Service {
+func NewService(conf Config, db *database.Service, mcp *mcp.Service, wx *wechat.Service) *Service {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
@@ -48,6 +50,7 @@ func NewService(conf Config, db *database.Service, mcp *mcp.Service) *Service {
 		conf:   conf,
 		db:     db,
 		mcp:    mcp,
+		wx:     wx,
 		router: router,
 	}
 

@@ -27,7 +27,6 @@ _聊天记录工具，帮助大家轻松使用自己的聊天数据_
 - 支持自动解密数据，简化使用流程
 - 支持多账号管理，可在不同账号间切换
 
-
 ## TODO
 
 - 聊天数据全文索引
@@ -74,6 +73,7 @@ chatlog
 ```
 
 操作方法：
+
 - 使用 `↑` `↓` 键选择菜单项
 - 按 `Enter` 确认选择
 - 按 `Esc` 返回上级菜单
@@ -115,23 +115,23 @@ chatlog server
 macOS 用户在获取密钥前需要临时关闭 SIP（系统完整性保护）：
 
 1. **关闭 SIP**：
+
    ```shell
    # 进入恢复模式
    # Intel Mac: 重启时按住 Command + R
    # Apple Silicon: 重启时长按电源键
-   
+
    # 在恢复模式中打开终端并执行
    csrutil disable
-   
+
    # 重启系统
    ```
-
 2. **安装必要工具**：
+
    ```shell
    # 安装 Xcode Command Line Tools
    xcode-select --install
    ```
-
 3. **获取密钥后**：可以重新启用 SIP（`csrutil enable`），不影响后续使用
 
 > Apple Silicon 用户注意：确保微信、chatlog 和终端都不在 Rosetta 模式下运行
@@ -147,6 +147,7 @@ GET /api/v1/chatlog?time=2023-01-01&talker=wxid_xxx
 ```
 
 参数说明：
+
 - `time`: 时间范围，格式为 `YYYY-MM-DD` 或 `YYYY-MM-DD~YYYY-MM-DD`
 - `talker`: 聊天对象标识（支持 wxid、群聊 ID、备注名、昵称等）
 - `limit`: 返回记录数量
@@ -169,13 +170,13 @@ GET /api/v1/chatlog?time=2023-01-01&talker=wxid_xxx
 - **语音内容**：`GET /voice/<id>`
 - **多媒体内容**：`GET /data/<data dir relative path>`
 
-当请求图片、视频、文件内容时，将返回 302 跳转到多媒体内容 URL。  
-当请求语音内容时，将直接返回语音内容，并对原始 SILK 语音做了实时转码 MP3 处理。  
-多媒体内容 URL 地址为基于`数据目录`的相对地址，请求多媒体内容将直接返回对应文件，并针对加密图片做了实时解密处理。
+当请求图片、视频、文件内容时，将返回 302 跳转到多媒体内容 URL。
+当请求语音内容时，将直接返回语音内容，并对原始 SILK 语音做了实时转码 MP3 处理。
+多媒体内容 URL 地址为基于 `数据目录`的相对地址，请求多媒体内容将直接返回对应文件，并针对加密图片做了实时解密处理。
 
 ## MCP 集成
 
-Chatlog 支持 MCP (Model Context Protocol) SSE 协议，可与支持 MCP 的 AI 助手无缝集成。  
+Chatlog 支持 MCP (Model Context Protocol) SSE 协议，可与支持 MCP 的 AI 助手无缝集成。
 启动 HTTP 服务后，通过 SSE Endpoint 访问服务：
 
 ```
@@ -221,6 +222,40 @@ Chatlog 可以与多种支持 MCP 的 AI 助手集成，包括：
 
 **本项目完全免费开源，任何以本项目名义收费的行为均与本项目无关。**
 
+解决步骤（在 mac 上交叉编译）
+
+- 安装交叉编译工具链
+  - Homebrew 安装：brew install mingw-w64
+  - 验证：x86_64-w64-mingw32-gcc --version
+- 构建 Windows x64 可执行文件
+  - GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ go build
+    -trimpath -o bin/chatlog_windows_amd64.exe main.go
+- 可选构建 Windows ARM64
+  - GOOS=windows GOARCH=arm64 CGO_ENABLED=1 CC=aarch64-w64-mingw32-gcc CXX=aarch64-w64-mingw32-g++ go build
+    -trimpath -o bin/chatlog_windows_arm64.exe main.go
+
+  产物位置
+
+- bin/chatlog_windows_amd64.exe 或 bin/chatlog_windows_arm64.exe
+- 注意：不要在 mac 上执行 .exe。把它拷到 Windows 机器运行，或继续打包安装器/zip 包。
+
+  打包成 zip（便携版）
+
+- 简单手动打包：
+  - mkdir -p packages && zip -j packages/chatlog_windows_amd64.zip bin/chatlog_windows_amd64.exe README.md
+    LICENSE
+- 我也提供了安装器脚本（Inno Setup）：script/windows.iss
+  - 将 exe 放到 dist\chatlog\chatlog.exe
+  - 在 Windows 上用 Inno Setup 编译生成安装包（带桌面图标与“Server”快捷方式）
+
+  常见问题
+
+- 仍提示找不到编译器：确认 brew install mingw-w64 成功，且命令在 PATH。
+- go-sqlite3 需要 CGO：务必设置 CGO_ENABLED=1 且提供对应 CC/CXX。
+- 想自动化：也可以在 Windows 本机直接 go build -o dist\chatlog\chatlog.exe .，再用 Inno Setup 打包。
+
+  需要我把 script/package.sh 改为不依赖 git describe（支持手动 VERSION）并新增 Windows-only 一键打包命令吗？
+
 ## License
 
 本项目基于 [Apache-2.0 许可证](./LICENSE) 开源。
@@ -234,5 +269,5 @@ Chatlog 可以与多种支持 MCP 的 AI 助手集成，包括：
 - [@0xlane](https://github.com/0xlane) 的 [wechat-dump-rs](https://github.com/0xlane/wechat-dump-rs) 项目
 - [@xaoyaoo](https://github.com/xaoyaoo) 的 [PyWxDump](https://github.com/xaoyaoo/PyWxDump) 项目
 - [@git-jiadong](https://github.com/git-jiadong) 的 [go-lame](https://github.com/git-jiadong/go-lame) 和 [go-silk](https://github.com/git-jiadong/go-silk) 项目
-- [Anthropic](https://www.anthropic.com/) 的 [MCP]((https://github.com/modelcontextprotocol) ) 协议
+- [Anthropic](https://www.anthropic.com/) 的 [MCP]((https://github.com/modelcontextprotocol)) ) 协议
 - 各个 Go 开源库的贡献者们

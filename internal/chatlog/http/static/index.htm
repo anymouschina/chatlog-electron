@@ -325,6 +325,44 @@
         color: var(--error-color);
         font-weight: bold;
       }
+
+      /* Modal styles for summarize */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.4);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 520px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        padding: 20px;
+        animation: fadeIn 0.2s ease-in;
+      }
+      .modal h3 {
+        margin-top: 0;
+      }
+      .modal .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .btn-secondary {
+        background-color: #95a5a6;
+      }
+      .btn-secondary:hover {
+        background-color: #7f8c8d;
+      }
     </style>
   </head>
   <body>
@@ -504,7 +542,30 @@
             </div>
           </div>
 
-          <button id="test-api">执行查询</button>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="test-api">执行查询</button>
+            <button id="summarize-btn">智能总结</button>
+          </div>
+
+          <!-- Summarize modal -->
+          <div id="summarize-modal" class="modal-overlay">
+            <div class="modal">
+              <h3>智能总结</h3>
+              <div class="form-group">
+                <label for="summary-date">选择日期：<span class="required-field">*</span></label>
+                <input type="date" id="summary-date" />
+              </div>
+              <div class="form-group">
+                <label for="summary-prompt">提示词：<span class="optional-param">可选</span></label>
+                <textarea id="summary-prompt" rows="4" placeholder="例如：请用要点总结当天沟通内容，提取待办与结论"></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn-secondary" id="cancel-summary">取消</button>
+                <button id="start-summary">开始总结</button>
+              </div>
+              <div class="error-message" id="summary-error" style="display:none;"></div>
+            </div>
+          </div>
 
           <div id="result-wrapper" style="display: none; margin-top: 20px">
             <div class="request-url" id="request-url-container">
@@ -719,6 +780,101 @@
             console.error("API查询出错:", error);
           }
         });
+
+      // Summarize modal handlers
+      const summarizeBtn = document.getElementById("summarize-btn");
+      const modal = document.getElementById("summarize-modal");
+      const cancelSummary = document.getElementById("cancel-summary");
+      const startSummary = document.getElementById("start-summary");
+      const summaryError = document.getElementById("summary-error");
+
+      summarizeBtn.addEventListener("click", function () {
+        // Only available on chatlog tab; ensure talker is provided
+        const activeTab = document.querySelector(".tab.active").getAttribute("data-tab");
+        if (activeTab !== "chatlog") {
+          alert("请先切换到“聊天记录”标签，并填写聊天对象");
+          return;
+        }
+        const talker = document.getElementById("talker").value.trim();
+        if (!talker) {
+          alert("请先在聊天记录表单中填写“聊天对象”");
+          return;
+        }
+        // Reset modal
+        document.getElementById("summary-date").value = "";
+        document.getElementById("summary-prompt").value = "";
+        summaryError.style.display = "none";
+        summaryError.textContent = "";
+        modal.style.display = "flex";
+      });
+
+      cancelSummary.addEventListener("click", function () {
+        modal.style.display = "none";
+      });
+
+      // Close modal on overlay click
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) modal.style.display = "none";
+      });
+
+      startSummary.addEventListener("click", async function () {
+        summaryError.style.display = "none";
+        summaryError.textContent = "";
+        const date = document.getElementById("summary-date").value;
+        const prompt = document.getElementById("summary-prompt").value || "";
+        const talker = document.getElementById("talker").value.trim();
+
+        if (!date) {
+          summaryError.textContent = "错误: 必须选择日期";
+          summaryError.style.display = "block";
+          return;
+        }
+        if (!talker) {
+          summaryError.textContent = "错误: 必须填写聊天对象";
+          summaryError.style.display = "block";
+          return;
+        }
+
+        // Show result wrapper and URL
+        const resultContainer = document.getElementById("api-result");
+        const requestUrlContainer = document.getElementById("request-url");
+        const resultWrapper = document.getElementById("result-wrapper");
+        const errorMessage = document.getElementById("error-message");
+
+        errorMessage.style.display = "none";
+        errorMessage.textContent = "";
+        resultWrapper.style.display = "block";
+
+        const apiUrl = "/api/v1/summarize";
+        requestUrlContainer.textContent = window.location.origin + apiUrl;
+        resultContainer.innerHTML = '<div class="loading">总结中</div>';
+
+        try {
+          const resp = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date, talker, prompt }),
+          });
+          if (!resp.ok) {
+            const txt = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${txt}`);
+          }
+          const contentType = resp.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const data = await resp.json();
+            resultContainer.innerHTML = JSON.stringify(data, null, 2);
+          } else {
+            const text = await resp.text();
+            resultContainer.innerHTML = text;
+          }
+          modal.style.display = "none";
+        } catch (err) {
+          resultContainer.innerHTML = "";
+          errorMessage.textContent = `总结出错: ${err.message}`;
+          errorMessage.style.display = "block";
+          console.error("总结出错:", err);
+        }
+      });
 
       // 复制结果功能
       document

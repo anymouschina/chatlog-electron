@@ -527,12 +527,13 @@ func (ds *DataSource) GetSessions(ctx context.Context, key string, limit, offset
 	var query string
 	var args []interface{}
 
-	if key != "" {
-		// 按照关键字查询
-		query = `SELECT m_nsUserName, m_uLastTime 
-				FROM SessionAbstract 
-				WHERE m_nsUserName = ?`
-		args = []interface{}{key}
+    if key != "" {
+        // 按照关键字查询（模糊匹配用户名）
+        query = `SELECT m_nsUserName, m_uLastTime 
+                FROM SessionAbstract 
+                WHERE m_nsUserName LIKE ?`
+        like := "%" + key + "%"
+        args = []interface{}{like}
 	} else {
 		// 查询所有会话
 		query = `SELECT m_nsUserName, m_uLastTime 

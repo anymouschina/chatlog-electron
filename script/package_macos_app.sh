@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Package macOS App: Electron UI + bundled chatlog backend
+#
+# Usage:
+#   bash script/package_macos_app_fixed.sh
+#
+# Options (env vars):
+#   SKIP_NPM=1        # Skip npm install/ci
+#   NPM_CI=1          # Use npm ci when installing deps
+#   VERBOSE=1         # Print verbose logs
+#
+# Output:
+#   packages/chatlog-desktop/release/<version>/Chatlog-Mac-<version>-Installer.zip
+
+set -euo pipefail
+
+log() { printf '[pack] %s\n' "$*"; }
+run() { if [[ "${VERBOSE:-}" == "1" ]]; then set -x; fi; "$@"; if [[ "${VERBOSE:-}" == "1" ]]; then set +x; fi }
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DESKTOP_DIR="$ROOT_DIR/packages/chatlog-desktop"
+MAC_BIN_PATH="$ROOT_DIR/packages/chatlog_macos"
+
+# 1) Sanity checks
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  log "This script is intended to run on macOS (Darwin)."
+fi
+
+command -v go >/dev/null 2>&1 || { echo "go not found"; exit 1; }
+command -v npm >/dev/null 2>&1 || { echo "npm not found"; exit 1; }
+
+# 2) Build backend for current mac platform
+log "Building chatlog backend (Go)"
+run make -C "$ROOT_DIR" build
+
+# 3) Place backend binary to be bundled by electron-builder
+log "Preparing bundled backend binary"
+run mkdir -p "$MAC_BIN_PATH"
+run cp "$ROOT_DIR/bin/chatlog" "$MAC_BIN_PATH" 2>/dev/null || {
+  echo "chatlog binary not found at bin/chatlog"; exit 1;
+}
+chmod +x "$MAC_BIN_PATH/chatlog" || true
+
+# 4) Build Electron app (ZIP)
+log "Packaging Electron app (ZIP)"
+# Optional mirrors for faster and more reliable downloads (esp. in CN)
+export ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}"
+export ELECTRON_BUILDER_BINARIES_MIRROR="${ELECTRON_BUILDER_BINARIES_MIRROR:-https://npmmirror.com/mirrors/electron-builder-binaries/}"
+# Disable code signing for local build to avoid hanging at macOS signing step
+export CSC_IDENTITY_AUTO=${CSC_IDENTITY_AUTO:-false}
+export CSC_LINK=${CSC_LINK:-}
+export CSC_KEY_PASSWORD=${CSC_KEY_PASSWORD:-}
+export ELECTRON_BUILDER_DISABLE_CODE_SIGN=${ELECTRON_BUILDER_DISABLE_CODE_SIGN:-true}
+export GH_TOKEN=${GH_TOKEN:-}
+export APPLE_ID=${APPLE_ID:-}
+export APPLE_ID_PASSWORD=${APPLE_ID_PASSWORD:-}
+if [[ "${SKIP_NPM:-}" != "1" ]]; then
+  pushd "$DESKTOP_DIR" >/dev/null
+  if [[ -f package-lock.json && "${NPM_CI:-}" == "1" ]]; then
+    run npm ci
+  else
+    run npm install
+  fi
+  popd >/dev/null
+else
+  log "Skipping npm install as SKIP_NPM=1"
+fi
+
+pushd "$DESKTOP_DIR" >/dev/null
+# Prefer building ZIP to avoid hdiutil DMG issues; override with MAC_TARGET=dmg when needed
+TARGET="${MAC_TARGET:-zip}"
+if [[ "$TARGET" == "zip" ]]; then
+  run npm run build -- --mac zip
+else
+  run npm run build -- --mac dmg
+fi
+popd >/dev/null
+
+log "Done. Find artifacts under: $DESKTOP_DIR/release"
+log "If you need a DMG later, run: MAC_TARGET=dmg bash script/package_macos_app.sh"

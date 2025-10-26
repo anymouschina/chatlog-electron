@@ -1,20 +1,25 @@
 package http
 
 import (
-	"embed"
-	"fmt"
-	"io/fs"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
+    "bytes"
+    "embed"
+    "encoding/json"
+    "fmt"
+    "io"
+    "io/fs"
+    "net/http"
+    "os"
+    "path/filepath"
+    "strings"
+    "time"
 
-	"github.com/sjzar/chatlog/internal/errors"
-	"github.com/sjzar/chatlog/pkg/util"
-	"github.com/sjzar/chatlog/pkg/util/dat2img"
-	"github.com/sjzar/chatlog/pkg/util/silk"
+    "github.com/sjzar/chatlog/internal/errors"
+    "github.com/sjzar/chatlog/internal/chatlog/conf"
+    "github.com/sjzar/chatlog/pkg/util"
+    "github.com/sjzar/chatlog/pkg/util/dat2img"
+    "github.com/sjzar/chatlog/pkg/util/silk"
 
-	"github.com/gin-gonic/gin"
+    "github.com/gin-gonic/gin"
 )
 
 // EFS holds embedded file system data for static assets.
@@ -57,9 +62,139 @@ func (s *Service) initRouter() {
 		api.GET("/contact", s.GetContacts)
 		api.GET("/chatroom", s.GetChatRooms)
 		api.GET("/session", s.GetSessions)
+		api.POST("/summarize", s.PostSummarize)
+	}
+
+	// Control endpoints (runtime operations)
+	ctrl := router.Group("/api/v1/control")
+	{
+		ctrl.POST("/autodecrypt", s.CtrlAutoDecrypt)
+		ctrl.POST("/decrypt", s.CtrlDecrypt)
+		ctrl.POST("/config", s.CtrlConfig)
+		ctrl.GET("/instances", s.CtrlInstances)
+		ctrl.GET("/state", s.CtrlState)
 	}
 
 	router.NoRoute(s.NoRoute)
+}
+
+// CtrlAutoDecrypt toggles auto decrypt at runtime: {"enable": true|false}
+func (s *Service) CtrlAutoDecrypt(c *gin.Context) {
+    body := struct{ Enable bool `json:"enable"` }{}
+    if err := c.ShouldBindJSON(&body); err != nil {
+        errors.Err(c, errors.InvalidArg("enable"))
+        return
+    }
+    if s.wx == nil {
+        errors.Err(c, errors.New(nil, http.StatusInternalServerError, "wechat service not available"))
+        return
+    }
+    if body.Enable {
+        if err := s.wx.StartAutoDecrypt(); err != nil {
+            errors.Err(c, err)
+            return
+        }
+    } else {
+        if err := s.wx.StopAutoDecrypt(); err != nil {
+            errors.Err(c, err)
+            return
+        }
+    }
+    // best-effort update of config if underlying type supports it
+    if sc, ok := s.conf.(*conf.ServerConfig); ok {
+        sc.AutoDecrypt = body.Enable
+    }
+    c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// CtrlDecrypt triggers full decrypt and reloads DB
+func (s *Service) CtrlDecrypt(c *gin.Context) {
+    if s.wx == nil {
+        errors.Err(c, errors.New(nil, http.StatusInternalServerError, "wechat service not available"))
+        return
+    }
+    s.db.SetDecrypting()
+    if err := s.wx.DecryptDBFiles(); err != nil {
+        s.db.SetError(err.Error())
+        errors.Err(c, err)
+        return
+    }
+    // reload DB to reflect new data
+    _ = s.db.Stop()
+    if err := s.db.Start(); err != nil {
+        s.db.SetError(err.Error())
+        errors.Err(c, err)
+        return
+    }
+    s.db.SetReady()
+    c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// CtrlConfig updates runtime config. Accepts any of: addr,dataDir,dataKey,imgKey,workDir,platform,version
+func (s *Service) CtrlConfig(c *gin.Context) {
+    payload := struct {
+        Addr     string `json:"addr"`
+        DataDir  string `json:"dataDir"`
+        DataKey  string `json:"dataKey"`
+        ImgKey   string `json:"imgKey"`
+        WorkDir  string `json:"workDir"`
+        Platform string `json:"platform"`
+        Version  int    `json:"version"`
+    }{}
+    if err := c.ShouldBindJSON(&payload); err != nil {
+        errors.Err(c, errors.InvalidArg("config"))
+        return
+    }
+    // Only works when underlying conf is ServerConfig
+    if sc, ok := s.conf.(*conf.ServerConfig); ok {
+        if payload.Addr != "" { sc.HTTPAddr = payload.Addr }
+        if payload.DataDir != "" { sc.DataDir = payload.DataDir }
+        if payload.DataKey != "" { sc.DataKey = payload.DataKey }
+        if payload.ImgKey != "" { sc.ImgKey = payload.ImgKey }
+        if payload.WorkDir != "" { sc.WorkDir = payload.WorkDir }
+        if payload.Platform != "" { sc.Platform = payload.Platform }
+        if payload.Version != 0 { sc.Version = payload.Version }
+    }
+    // reload DB after config change impacting DB
+    _ = s.db.Stop()
+    if err := s.db.Start(); err != nil {
+        s.db.SetError(err.Error())
+        errors.Err(c, err)
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// CtrlInstances lists running WeChat processes (PID/name/version/dataDir)
+func (s *Service) CtrlInstances(c *gin.Context) {
+    if s.wx == nil {
+        errors.Err(c, errors.New(nil, http.StatusInternalServerError, "wechat service not available"))
+        return
+    }
+    type out struct {
+        PID         uint32 `json:"pid"`
+        Name        string `json:"name"`
+        FullVersion string `json:"full_version"`
+        DataDir     string `json:"data_dir"`
+    }
+    var items []out
+    for _, ins := range s.wx.GetWeChatInstances() {
+        items = append(items, out{PID: ins.PID, Name: ins.Name, FullVersion: ins.FullVersion, DataDir: ins.DataDir})
+    }
+    c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// CtrlState returns current basic server state/config (best-effort)
+func (s *Service) CtrlState(c *gin.Context) {
+    resp := gin.H{"http_addr": s.conf.GetHTTPAddr()}
+    if sc, ok := s.conf.(*conf.ServerConfig); ok {
+        resp["data_dir"] = sc.DataDir
+        resp["work_dir"] = sc.WorkDir
+        resp["platform"] = sc.Platform
+        resp["version"] = sc.Version
+        resp["auto_decrypt"] = sc.AutoDecrypt
+    }
+    c.JSON(http.StatusOK, resp)
 }
 
 // NoRoute handles 404 Not Found errors. If the request URL starts with "/api"
@@ -391,4 +526,93 @@ func (s *Service) HandleVoice(c *gin.Context, data []byte) {
 		return
 	}
 	c.Data(http.StatusOK, "audio/mp3", out)
+}
+
+// PostSummarize summarizes a single day's chatlog by calling an external API.
+// Request JSON: {"date":"YYYY-MM-DD", "talker":"...", "prompt":"..."}
+// Response: passthrough of external API response (JSON or text)
+func (s *Service) PostSummarize(c *gin.Context) {
+    var payload struct {
+        Date   string `json:"date"`
+        Talker string `json:"talker"`
+        Prompt string `json:"prompt"`
+    }
+    if err := c.ShouldBindJSON(&payload); err != nil {
+        errors.Err(c, errors.InvalidArg("date|talker|prompt"))
+        return
+    }
+    if strings.TrimSpace(payload.Date) == "" {
+        errors.Err(c, errors.InvalidArg("date"))
+        return
+    }
+    if strings.TrimSpace(payload.Talker) == "" {
+        errors.Err(c, errors.InvalidArg("talker"))
+        return
+    }
+
+    // Parse date into start/end time range (whole day)
+    // util.TimeRangeOf supports formats like YYYY-MM-DD and ranges.
+    start, end, ok := util.TimeRangeOf(payload.Date)
+    if !ok {
+        errors.Err(c, errors.InvalidArg("date"))
+        return
+    }
+
+    // Fetch all messages for that day and talker
+    messages, err := s.db.GetMessages(start, end, payload.Talker, "", "", 0, 0)
+    if err != nil {
+        errors.Err(c, err)
+        return
+    }
+
+    // Build plain text of the day's chat for message body
+    var b strings.Builder
+    isGroup := strings.Contains(payload.Talker, ",")
+    for _, m := range messages {
+        b.WriteString(m.PlainText(isGroup, util.PerfectTimeFormat(start, end), c.Request.Host))
+        b.WriteString("\n")
+    }
+    messageText := b.String()
+
+    // Call external summarize API
+    // NOTE: URL currently provided by user; may be configurable later.
+    reqBody := map[string]any{
+        "prompt":  payload.Prompt,
+        "message": messageText,
+    }
+    bodyBytes, _ := json.Marshal(reqBody)
+
+    httpClient := &http.Client{Timeout: 60 * time.Second}
+    req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost,
+        "https://n8n-preview.beqlee.icu/webhook/b2199135-477f-4fab-b45e-dfd21ef1f86b", bytes.NewReader(bodyBytes))
+    if err != nil {
+        errors.Err(c, err)
+        return
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        errors.Err(c, err)
+        return
+    }
+    defer resp.Body.Close()
+
+    respBytes, err := io.ReadAll(resp.Body)
+    if err != nil {
+        errors.Err(c, err)
+        return
+    }
+
+    // Pass through status and best-effort content type
+    ct := resp.Header.Get("Content-Type")
+    if ct == "" {
+        // Try to detect JSON; else fallback to text
+        if json.Valid(respBytes) {
+            ct = "application/json; charset=utf-8"
+        } else {
+            ct = "text/plain; charset=utf-8"
+        }
+    }
+    c.Data(resp.StatusCode, ct, respBytes)
 }

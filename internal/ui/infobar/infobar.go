@@ -15,7 +15,8 @@ const (
 
 // InfoBarViewHeight info bar height.
 const (
-	InfoBarViewHeight = 7
+    // Increased to account for table border/title for a cleaner look.
+    InfoBarViewHeight = 9
 	accountRow        = 0
 	statusRow         = 1
 	platformRow       = 2
@@ -41,8 +42,15 @@ type InfoBar struct {
 
 // NewInfoBar returns info bar view.
 func New() *InfoBar {
-	table := tview.NewTable()
-	headerColor := style.InfoBarItemFgColor
+    table := tview.NewTable()
+    headerColor := style.InfoBarItemFgColor
+
+    // Beautify: add a border and a descriptive title.
+    table.SetBorder(true)
+    table.SetTitle(" Chatlog · 微信聊天记录工具 ")
+    table.SetBorderColor(style.BorderColor)
+    table.SetTitleColor(style.PageHeaderFgColor)
+    table.SetBackgroundColor(style.BgColor)
 
 	// Account 和 PID 行
 	table.SetCell(
@@ -207,12 +215,13 @@ func (info *InfoBar) UpdateAutoDecrypt(text string) {
 
 // Draw draws this primitive onto the screen.
 func (info *InfoBar) Draw(screen tcell.Screen) {
-	info.Box.DrawForSubclass(screen, info)
-	info.Box.SetBorder(false)
+    info.Box.DrawForSubclass(screen, info)
+    info.Box.SetBorder(false)
 
 	x, y, width, height := info.GetInnerRect()
 
 	info.table.SetRect(x, y, width, height)
-	info.table.SetBorder(false)
-	info.table.Draw(screen)
+    // Keep the table border enabled for a cleaner header look.
+    info.table.SetBorder(true)
+    info.table.Draw(screen)
 }
