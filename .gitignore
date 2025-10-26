@@ -31,3 +31,4 @@ chatlog.exe# Added by goreleaser init:
 dist/
 node_modules
 *packages
+*release
